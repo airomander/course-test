@@ -1,32 +1,34 @@
 # AGENTS.md
 
-## Project structure
+Single-file Python Sudoku game with tkinter GUI, 10 fixed puzzles,
+Russian UI.
 
-Single-file Python Sudoku game with GUI. Only stdlib dependency is `tkinter`.
-
-- `sudoku.py` — run via `python sudoku.py`
-- UI language is Russian
+```
+python sudoku.py
+```
 
 ## Architecture
 
 - **Board**: `list[list[int]]` 9×9, `0` = empty
-- **Generation**: `generate_solved()` — fills 3 diagonal boxes with shuffled 1–9, then backtracking-solves; `create_puzzle(solved, clues=30)` removes `81 - clues` random cells
+- **10 hand-written puzzles** in `PUZZLES` list (not generated) —
+  each has `puzzle` (givens) + `solution` (full grid)
 - **Original cells** (`original[r][c] != 0`) are immutable givens
-- **Win**: all cells match `solved`
+- **Win**: all cells match `solution`
+- **Error limits** per difficulty: Легкий = 6, Средний = 4, Сложный = 2
+- **Undo / Redo**: max 3 steps, Ctrl+Z / Ctrl+Y or bottom buttons;
+  redo stack clears on new action
+- **sudoku_stats.json**: auto-created, stores `best_time` per puzzle
+  (keys `"1"`..`"10"`)
+- **`__pycache__/` tracked in .gitignore**
 
-## GUI (tkinter)
+## GUI quirks
 
-- **Left-click** empty cell → number panel appears near cursor → click digit to set it (click same digit again to clear)
-- **Right-click** → same panel but toggles pencil marks (small grey numbers in cell corners)
-- **Instant validation**: wrong numbers turn the cell red (`#f5c5c5`)
-- **Completed regions**: any correctly filled row / column / 3×3 box glows green (`#b8f0b5`); multiple regions can be lit simultaneously
-- **Undo / Redo**: buttons at bottom, max 3 steps, redo clears on new action
-- **Panel**: `overrideredirect(True)` popup positioned above cursor, auto-closes on focus loss or pick
+- Left-click empty/wrong cell → popup number panel near cursor
+- Right-click → same panel but toggles pencil marks (grey corner digits)
+- Wrong numbers highlighted in red (`#ffebee`), completed rows/columns/
+  3×3 boxes glow green (`#e8f5e9`)
+- Popup (`overrideredirect`) auto-closes on focus loss or Escape
 
 ## Verification
 
-No tests, linter, or typechecker. Run manually:
-
-```bash
-python sudoku.py
-```
+No tests, linter, or typechecker. Run manually only.
