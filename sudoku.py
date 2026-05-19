@@ -87,6 +87,8 @@ DIFF_BG = {
     "Сложный": "#ffebee",
 }
 
+ERROR_LIMITS = {"Легкий": 6, "Средний": 4, "Сложный": 2}
+
 # ── theme colours ──
 BG_GIVEN = "#f0f0f0"
 BG_EMPTY = "#ffffff"
@@ -266,7 +268,7 @@ class SudokuApp:
             time_lbl.pack(side=tk.LEFT)
 
             best_err = self.stats[idx].get("best_errors")
-            err_text = str(best_err) if best_err is not None else "\u2014"
+            err_text = f"{best_err}/{ERROR_LIMITS[diff]}" if best_err is not None else "\u2014"
             err_lbl = tk.Label(row, text=err_text, font=("Segoe UI", 10), width=8, anchor=tk.W, bg="white", fg="#888")
             err_lbl.pack(side=tk.LEFT)
 
@@ -319,52 +321,81 @@ class SudokuApp:
 
         self.root.title(f"Судоку — {p['name']}")
 
-        top_bar = tk.Frame(self.root, bg=GRID_BG)
-        top_bar.pack(fill=tk.X, padx=14, pady=(10, 0))
+        game_frame = tk.Frame(self.root, bg=GRID_BG)
+        game_frame.pack(padx=14, pady=(10, 12), fill=tk.BOTH)
 
-        diff_badge = tk.Frame(top_bar, bg=dc, padx=10, pady=2)
-        diff_badge.pack(side=tk.LEFT)
-        tk.Label(diff_badge, text=diff, font=("Segoe UI", 9, "bold"), bg=dc, fg="white").pack()
-
-        tk.Label(top_bar, text=p["name"], font=("Segoe UI", 14, "bold"), bg=GRID_BG, fg="#333").pack(side=tk.LEFT, padx=(10, 0))
-
-        self.timer_label = tk.Label(top_bar, text="00:00", font=("Segoe UI", 13, "bold"), bg=GRID_BG, fg="#555")
-        self.timer_label.pack(side=tk.RIGHT, padx=(0, 4))
-        tk.Label(top_bar, text="\u23f1", font=("Segoe UI", 13), bg=GRID_BG, fg="#aaa").pack(side=tk.RIGHT)
-
-        self.error_label = tk.Label(top_bar, font=("Segoe UI", 11, "bold"), bg=GRID_BG)
-        self.error_label.pack(side=tk.RIGHT, padx=(0, 8))
-
-        self.cv = tk.Canvas(self.root, width=GRID + 2, height=GRID + 2, bg=BG_EMPTY, highlightthickness=0)
-        self.cv.pack(padx=14, pady=(8, 0))
+        self.cv = tk.Canvas(game_frame, width=GRID + 2, height=GRID + 2, bg=BG_EMPTY, highlightthickness=0)
+        self.cv.pack(side=tk.LEFT)
 
         self.cv.bind("<Button-1>", self._on_left)
         self.cv.bind("<Button-3>", self._on_right)
         self.cv.bind("<Motion>", self._on_hover)
 
-        self._remaining_frm = tk.Frame(self.root, bg=GRID_BG)
-        self._remaining_frm.pack(pady=(6, 0))
-        tk.Label(self._remaining_frm, text="Осталось:", font=("Segoe UI", 9), bg=GRID_BG, fg="#999").pack(side=tk.LEFT, padx=(0, 6))
+        info_frm = tk.Frame(game_frame, bg=GRID_BG, padx=20)
+        info_frm.pack(side=tk.LEFT, fill=tk.Y, padx=(14, 0))
+        self._info_frm = info_frm
+
+        tk.Label(info_frm, text=p["name"], font=("Segoe UI", 16, "bold"),
+                 bg=GRID_BG, fg="#333").pack(anchor=tk.W)
+
+        diff_badge = tk.Frame(info_frm, bg=dc, padx=10, pady=2)
+        diff_badge.pack(anchor=tk.W, pady=(4, 0))
+        tk.Label(diff_badge, text=diff, font=("Segoe UI", 9, "bold"),
+                 bg=dc, fg="white").pack()
+
+        tk.Frame(info_frm, height=1, bg="#e0e0e0").pack(fill=tk.X, pady=(10, 6))
+
+        timer_frm = tk.Frame(info_frm, bg=GRID_BG)
+        timer_frm.pack(anchor=tk.W)
+        tk.Label(timer_frm, text="\u23f1", font=("Segoe UI", 13),
+                 bg=GRID_BG, fg="#aaa").pack(side=tk.LEFT)
+        self.timer_label = tk.Label(timer_frm, text="00:00",
+                                    font=("Segoe UI", 13, "bold"),
+                                    bg=GRID_BG, fg="#555")
+        self.timer_label.pack(side=tk.LEFT, padx=(4, 0))
+
+        self.error_label = tk.Label(info_frm, font=("Segoe UI", 11, "bold"), bg=GRID_BG)
+        self.error_label.pack(anchor=tk.W, pady=(6, 0))
+
+        tk.Frame(info_frm, height=1, bg="#e0e0e0").pack(fill=tk.X, pady=(10, 6))
+
+        tk.Label(info_frm, text="Осталось:", font=("Segoe UI", 9),
+                 bg=GRID_BG, fg="#999").pack(anchor=tk.W)
+        grid_frm = tk.Frame(info_frm, bg=GRID_BG)
+        grid_frm.pack(pady=(4, 0))
         self._remaining_labels = []
-        for n in range(1, 10):
-            lbl = tk.Label(self._remaining_frm, text=str(n), font=("Segoe UI", 10, "bold"),
-                           width=2, bg=GRID_BG, fg="#555")
-            lbl.pack(side=tk.LEFT)
-            self._remaining_labels.append(lbl)
+        for i in range(3):
+            for j in range(3):
+                n = i * 3 + j + 1
+                lbl = tk.Label(grid_frm, text=str(n),
+                               font=("Segoe UI", 11, "bold"),
+                               width=2, relief=tk.FLAT,
+                               bg=GRID_BG, fg="#555")
+                lbl.grid(row=i, column=j, padx=3, pady=2)
+                self._remaining_labels.append(lbl)
+
+        tk.Frame(info_frm, height=1, bg="#e0e0e0").pack(fill=tk.X, pady=(10, 6))
+
+        self._btn_frm = tk.Frame(info_frm, bg=GRID_BG)
+        self._btn_frm.pack(anchor=tk.W)
+        self._make_btn(self._btn_frm, "\u25c0 Отменить", self._undo,
+                       bg="#e0e0e0", fg="#333",
+                       activebackground="#bdbdbd",
+                       activeforeground="#333").pack(fill=tk.X, pady=2)
+        self._make_btn(self._btn_frm, "\u25b6 Повторить", self._redo,
+                       bg="#e0e0e0", fg="#333",
+                       activebackground="#bdbdbd",
+                       activeforeground="#333").pack(fill=tk.X, pady=2)
+        self._make_btn(self._btn_frm, "\u21e6 К выбору уровней", self.show_menu,
+                       bg="#1565c0", fg="white",
+                       activebackground="#0d47a1",
+                       activeforeground="white").pack(fill=tk.X, pady=2)
 
         self._hover_cell = None
 
         if self._game_over_frm:
             self._game_over_frm.destroy()
             self._game_over_frm = None
-
-        frm = tk.Frame(self.root, bg=GRID_BG)
-        frm.pack(pady=(8, 10))
-        self._btn_frm = frm
-
-        self._make_btn(frm, "\u25c0 Отменить", self._undo, bg="#e0e0e0", fg="#333", activebackground="#bdbdbd", activeforeground="#333").pack(side=tk.LEFT, padx=3)
-        self._make_btn(frm, "\u25b6 Повторить", self._redo, bg="#e0e0e0", fg="#333", activebackground="#bdbdbd", activeforeground="#333").pack(side=tk.LEFT, padx=3)
-        self._make_btn(frm, "\u21e6 К выбору уровней", self.show_menu, bg="#1565c0", fg="white", activebackground="#0d47a1", activeforeground="white").pack(side=tk.LEFT, padx=3)
 
         self._update_error_display()
         self._draw()
@@ -677,18 +708,36 @@ class SudokuApp:
             self._draw_game_over()
             self._show_game_over_buttons()
 
+    def _round_rect(self, x1, y1, x2, y2, r=20, **kwargs):
+        points = [
+            x1 + r, y1,  x2 - r, y1,
+            x2, y1,  x2, y1 + r,
+            x2, y2 - r,  x2, y2,  x2 - r, y2,
+            x1 + r, y2,  x1, y2,  x1, y2 - r,
+            x1, y1 + r,  x1, y1,  x1 + r, y1,
+        ]
+        return self.cv.create_polygon(points, smooth=True, **kwargs)
+
     def _draw_game_over(self):
-        self.cv.create_rectangle(0, 0, GRID + 2, GRID + 2, fill="#ffebee", stipple="gray25", outline="")
+        cw = GRID + 2
+        cx = cw // 2
+        self.cv.create_rectangle(0, 0, cw, cw, fill="#ffebee", stipple="gray25", outline="")
+        self._round_rect(cx - 210, cx - 70, cx + 210, cx + 70, r=22,
+                         fill="#000", stipple="gray50", width=0)
+        self._round_rect(cx - 210, cx - 70, cx + 210, cx + 70, r=22,
+                         fill="#c62828", outline="#ef5350", width=2)
+        self.cv.create_line(cx - 130, cx + 5, cx + 130, cx + 5,
+                            fill="white", width=1)
         self.cv.create_text(
-            (GRID + 2) // 2, (GRID + 2) // 2 - 28,
+            cx, cx - 30,
             text="\u2718 \u0418\u0413\u0420\u0410 \u041e\u041a\u041e\u041d\u0427\u0415\u041d\u0410",
-            font=("Segoe UI", 26, "bold"), fill="#c62828",
+            font=("Segoe UI", 28, "bold"), fill="white",
         )
         self.cv.create_text(
-            (GRID + 2) // 2, (GRID + 2) // 2 + 24,
+            cx, cx + 35,
             text=f"\u041e\u0448\u0438\u0431\u043a\u0438: {self.errors_made}/{self.error_limit} \u2022 "
                  f"\u0412\u0440\u0435\u043c\u044f: {_fmt_time(self.elapsed)}",
-            font=("Segoe UI", 14), fill="#555",
+            font=("Segoe UI", 15), fill="white",
         )
 
     def _show_game_over_buttons(self):
@@ -697,8 +746,8 @@ class SudokuApp:
         if self._game_over_frm:
             self._game_over_frm.destroy()
 
-        frm = tk.Frame(self.root, bg=GRID_BG)
-        frm.pack(pady=(8, 10))
+        frm = tk.Frame(self._info_frm, bg=GRID_BG)
+        frm.pack(anchor=tk.W)
         self._game_over_frm = frm
 
         self._make_btn(frm, "\u21bb \u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c \u0443\u0440\u043e\u0432\u0435\u043d\u044c",
@@ -785,12 +834,13 @@ class SudokuApp:
             w = 2 if i % 3 == 0 else 1
             c = GRID_THICK if i % 3 == 0 else GRID_THIN
             offset = 0.5
+            end = GRID + 0.5 if i in (0, 9) else GRID
             self.cv.create_line(
-                offset + i * CELL, 0, offset + i * CELL, GRID,
+                offset + i * CELL, 0, offset + i * CELL, end,
                 width=w, fill=c,
             )
             self.cv.create_line(
-                0, offset + i * CELL, GRID, offset + i * CELL,
+                0, offset + i * CELL, end, offset + i * CELL,
                 width=w, fill=c,
             )
 
@@ -823,22 +873,35 @@ class SudokuApp:
             self._save_stats()
 
         cw = GRID + 2
-        self.cv.create_rectangle(0, 0, cw, cw, fill="#e8f5e9", stipple="gray25", outline="")
-        self.cv.create_text(
-            cw // 2, cw // 2 - 20,
-            text="\u2714 \u041f\u041e\u0411\u0415\u0414\u0410!",
-            font=("Segoe UI", 32, "bold"), fill="#2e7d32",
-        )
-        self.cv.create_text(
-            cw // 2, cw // 2 + 35,
-            text=f"\u0412\u0440\u0435\u043c\u044f: {_fmt_time(self.elapsed)}",
-            font=("Segoe UI", 14), fill="#555",
-        )
+        cx = cw // 2
         if time_improved or errors_improved:
+            card_h = 160
+            rec_y = cx + 65
+        else:
+            card_h = 125
+            rec_y = None
+        self.cv.create_rectangle(0, 0, cw, cw, fill="#e8f5e9", stipple="gray25", outline="")
+        self._round_rect(cx - 200, cx - card_h // 2, cx + 200, cx + card_h // 2, r=22,
+                         fill="#000", stipple="gray50", width=0)
+        self._round_rect(cx - 200, cx - card_h // 2, cx + 200, cx + card_h // 2, r=22,
+                         fill="#2e7d32", outline="#66bb6a", width=2)
+        self.cv.create_line(cx - 115, cx + 5, cx + 115, cx + 5,
+                            fill="white", width=1)
+        self.cv.create_text(
+            cx, cx - 25,
+            text="\u2714 \u041f\u041e\u0411\u0415\u0414\u0410!",
+            font=("Segoe UI", 34, "bold"), fill="white",
+        )
+        self.cv.create_text(
+            cx, cx + 35,
+            text=f"\u0412\u0440\u0435\u043c\u044f: {_fmt_time(self.elapsed)}",
+            font=("Segoe UI", 15), fill="white",
+        )
+        if rec_y is not None:
             self.cv.create_text(
-                cw // 2, cw // 2 + 65,
+                cx, rec_y,
                 text="\u2605 \u041d\u043e\u0432\u044b\u0439 \u0440\u0435\u043a\u043e\u0440\u0434! \u2605",
-                font=("Segoe UI", 14, "bold"), fill="#e65100",
+                font=("Segoe UI", 15, "bold"), fill="white",
             )
 
     # ── events ──

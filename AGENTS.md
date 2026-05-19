@@ -21,6 +21,12 @@ python sudoku.py
   per puzzle (keys `"1"`..`"10"`)
 - **`.gitignore`** ignores `__pycache__/`, `*.pyc`, `*.pyo`, `*.pyd`
 
+## GUI layout
+
+Game window: canvas (left) + info panel (right). Info panel shows:
+card name + difficulty badge, timer, errors, remaining numbers as 3×3
+grid, and action buttons (undo / redo / back) stacked vertically.
+
 ## GUI quirks
 
 - Left-click empty/wrong cell → popup number panel near cursor
