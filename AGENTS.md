@@ -17,9 +17,9 @@ python sudoku.py
 - **Error limits** per difficulty: Легкий = 6, Средний = 4, Сложный = 2
 - **Undo / Redo**: max 3 steps, Ctrl+Z / Ctrl+Y or bottom buttons;
   redo stack clears on new action
-- **sudoku_stats.json**: auto-created, stores `best_time` per puzzle
-  (keys `"1"`..`"10"`)
-- **`__pycache__/` tracked in .gitignore**
+- **sudoku_stats.json**: auto-created, stores `best_time` and `best_errors`
+  per puzzle (keys `"1"`..`"10"`)
+- **`.gitignore`** ignores `__pycache__/`, `*.pyc`, `*.pyo`, `*.pyd`
 
 ## GUI quirks
 

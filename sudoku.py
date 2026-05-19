@@ -167,6 +167,8 @@ class SudokuApp:
         self._panel_pixel = tk.PhotoImage(width=1, height=1)
         self._btn_frm = None
         self._game_over_frm = None
+        self._remaining_frm = None
+        self._remaining_labels = []
         self._bind_hotkeys()
         self.root.bind("<Button-1>", self._on_any_click, add="+")
         self.show_menu()
@@ -180,7 +182,7 @@ class SudokuApp:
                     return json.load(f)
             except Exception:
                 pass
-        return {str(i + 1): {"best_time": None} for i in range(10)}
+        return {str(i + 1): {"best_time": None, "best_errors": None} for i in range(10)}
 
     def _save_stats(self):
         with open(STATS_FILE, "w", encoding="utf-8") as f:
@@ -235,7 +237,7 @@ class SudokuApp:
         head_font = tkfont.Font(family="Segoe UI", size=10, weight="bold")
         header_row = tk.Frame(self.root, bg=GRID_BG)
         header_row.pack(fill=tk.X, padx=28, pady=(8, 0))
-        for txt, w in [("Название", 10), ("Сложность", 11), ("Лучшее время", 14)]:
+        for txt, w in [("Название", 10), ("Сложность", 11), ("Лучшее", 10), ("Ошибки", 8)]:
             tk.Label(
                 header_row, text=txt, font=head_font,
                 width=w, anchor=tk.W, bg=GRID_BG, fg="#777"
@@ -260,17 +262,22 @@ class SudokuApp:
             diff_lbl = tk.Label(row, text=diff, font=("Segoe UI", 9, "bold"), width=11, anchor=tk.CENTER, bg=dbg, fg=dc)
             diff_lbl.pack(side=tk.LEFT, padx=4)
 
-            time_lbl = tk.Label(row, text=_fmt_time(best), font=("Segoe UI", 10), width=14, anchor=tk.W, bg="white", fg="#888")
+            time_lbl = tk.Label(row, text=_fmt_time(best), font=("Segoe UI", 10), width=10, anchor=tk.W, bg="white", fg="#888")
             time_lbl.pack(side=tk.LEFT)
 
-            def on_enter(e, r=row, n=name_lbl, t=time_lbl):
-                c = "#f5f5f5"
-                r.configure(bg=c); n.configure(bg=c); t.configure(bg=c)
-            def on_leave(e, r=row, n=name_lbl, t=time_lbl):
-                c = "white"
-                r.configure(bg=c); n.configure(bg=c); t.configure(bg=c)
+            best_err = self.stats[idx].get("best_errors")
+            err_text = str(best_err) if best_err is not None else "\u2014"
+            err_lbl = tk.Label(row, text=err_text, font=("Segoe UI", 10), width=8, anchor=tk.W, bg="white", fg="#888")
+            err_lbl.pack(side=tk.LEFT)
 
-            for widget in (row, name_lbl, diff_lbl, time_lbl):
+            def on_enter(e, r=row, n=name_lbl, t=time_lbl, e_lbl=err_lbl):
+                c = "#f5f5f5"
+                r.configure(bg=c); n.configure(bg=c); t.configure(bg=c); e_lbl.configure(bg=c)
+            def on_leave(e, r=row, n=name_lbl, t=time_lbl, e_lbl=err_lbl):
+                c = "white"
+                r.configure(bg=c); n.configure(bg=c); t.configure(bg=c); e_lbl.configure(bg=c)
+
+            for widget in (row, name_lbl, diff_lbl, time_lbl, err_lbl):
                 widget.bind("<Button-1>", lambda e, idx=i: self.start_game(idx))
                 widget.bind("<Enter>", on_enter)
                 widget.bind("<Leave>", on_leave)
@@ -334,6 +341,16 @@ class SudokuApp:
         self.cv.bind("<Button-1>", self._on_left)
         self.cv.bind("<Button-3>", self._on_right)
         self.cv.bind("<Motion>", self._on_hover)
+
+        self._remaining_frm = tk.Frame(self.root, bg=GRID_BG)
+        self._remaining_frm.pack(pady=(6, 0))
+        tk.Label(self._remaining_frm, text="Осталось:", font=("Segoe UI", 9), bg=GRID_BG, fg="#999").pack(side=tk.LEFT, padx=(0, 6))
+        self._remaining_labels = []
+        for n in range(1, 10):
+            lbl = tk.Label(self._remaining_frm, text=str(n), font=("Segoe UI", 10, "bold"),
+                           width=2, bg=GRID_BG, fg="#555")
+            lbl.pack(side=tk.LEFT)
+            self._remaining_labels.append(lbl)
 
         self._hover_cell = None
 
@@ -440,6 +457,21 @@ class SudokuApp:
                     btn.bind("<ButtonPress-1>", lambda e, b=btn, cb=active_bg: b.configure(bg=cb))
                     btn.bind("<ButtonRelease-1>", lambda e, b=btn, cb=bg_color: b.configure(bg=cb))
 
+        if not is_mark:
+            sep_line = tk.Frame(f, height=1, bg="#e0e0e0")
+            sep_line.grid(row=3, column=0, columnspan=3, sticky="ew", pady=(4, 2))
+            clear_btn = tk.Button(
+                f, text="\u2715", image=self._panel_pixel, compound=tk.CENTER,
+                width=44, height=32,
+                font=("Segoe UI", 11, "bold"),
+                relief=tk.FLAT, bd=0,
+                bg="#fff", fg="#c62828",
+                activebackground="#ffebee", activeforeground="#b71c1c",
+                cursor="hand2",
+                command=lambda: self._clear_cell(),
+            )
+            clear_btn.grid(row=4, column=0, columnspan=3, pady=(0, 1))
+
         self._panel_gen += 1
         gen = self._panel_gen
         p.bind("<FocusOut>", lambda e: self._on_panel_focus_out(gen))
@@ -478,7 +510,12 @@ class SudokuApp:
             if old == num:
                 num = 0
             if old != num:
-                self._push_undo(("set", r, c, old, num))
+                old_was_wrong = old != 0 and old != self.solved[r][c]
+                new_is_wrong = num != 0 and num != self.solved[r][c]
+                caused_error = new_is_wrong and not old_was_wrong
+                if caused_error:
+                    self.errors_made += 1
+                self._push_undo(("set", r, c, old, num, caused_error))
                 self.board[r][c] = num
                 self._clear_pencil_cell(r, c)
         else:
@@ -490,6 +527,22 @@ class SudokuApp:
                 self.pencil.add(pm)
                 self._push_undo(("mark", r, c, num))
 
+        self._hide_panel()
+        self._sync()
+
+    def _clear_cell(self):
+        if self.selected is None or self.won or self.game_over:
+            self._hide_panel()
+            return
+        r, c = self.selected
+        if self.original[r][c] != 0:
+            self._hide_panel()
+            return
+        old = self.board[r][c]
+        if old != 0:
+            self._push_undo(("set", r, c, old, 0, False))
+            self.board[r][c] = 0
+            self._clear_pencil_cell(r, c)
         self._hide_panel()
         self._sync()
 
@@ -514,8 +567,10 @@ class SudokuApp:
         self.redo_st.append(a)
         t = a[0]
         if t == "set":
-            _, r, c, old, _ = a
+            _, r, c, old, _, caused_error = a
             self.board[r][c] = old
+            if caused_error:
+                self.errors_made = max(0, self.errors_made - 1)
         elif t == "mark":
             _, r, c, n = a
             self.pencil.discard((r, c, n))
@@ -532,8 +587,10 @@ class SudokuApp:
         self.undo_st.append(a)
         t = a[0]
         if t == "set":
-            _, r, c, _, new = a
+            _, r, c, _, new, caused_error = a
             self.board[r][c] = new
+            if caused_error:
+                self.errors_made += 1
         elif t == "mark":
             _, r, c, n = a
             self.pencil.add((r, c, n))
@@ -585,14 +642,6 @@ class SudokuApp:
                     counts[v] += 1
         self.completed_numbers = {n for n, cnt in counts.items() if cnt == 9}
 
-    def _count_errors(self):
-        count = 0
-        for r in range(9):
-            for c in range(9):
-                if self.original[r][c] == 0 and self.board[r][c] != 0 and self.board[r][c] != self.solved[r][c]:
-                    count += 1
-        return count
-
     def _update_error_display(self):
         if not self.error_label or self.cv is None:
             return
@@ -607,6 +656,16 @@ class SudokuApp:
             text=f"Ошибки: {self.errors_made}/{self.error_limit}",
             fg=color,
         )
+
+    def _update_remaining_display(self):
+        if not self._remaining_labels:
+            return
+        for n in range(1, 10):
+            done = n in self.completed_numbers
+            self._remaining_labels[n - 1].config(
+                fg=BG_COMPLETE if done else "#555",
+                text=f"{n}" if not done else f"{n}\u2713",
+            )
 
     def _check_game_over(self):
         if self.game_over:
@@ -656,10 +715,8 @@ class SudokuApp:
     def _sync(self):
         self._check_regions()
         self._check_completed_numbers()
-        current_errors = self._count_errors()
-        if current_errors > self.errors_made:
-            self.errors_made = current_errors
         self._update_error_display()
+        self._update_remaining_display()
         self._draw()
         if not self.game_over:
             self._check_win()
@@ -755,9 +812,14 @@ class SudokuApp:
 
         idx = str(self.puzzle_idx + 1)
         best = self.stats[idx]["best_time"]
-        new_record = best is None or self.elapsed < best
-        if new_record:
-            self.stats[idx]["best_time"] = self.elapsed
+        best_err = self.stats[idx].get("best_errors")
+        time_improved = best is None or self.elapsed < best
+        errors_improved = best_err is None or self.errors_made < best_err
+        if time_improved or errors_improved:
+            if time_improved:
+                self.stats[idx]["best_time"] = self.elapsed
+            if errors_improved:
+                self.stats[idx]["best_errors"] = self.errors_made
             self._save_stats()
 
         cw = GRID + 2
@@ -772,7 +834,7 @@ class SudokuApp:
             text=f"\u0412\u0440\u0435\u043c\u044f: {_fmt_time(self.elapsed)}",
             font=("Segoe UI", 14), fill="#555",
         )
-        if new_record:
+        if time_improved or errors_improved:
             self.cv.create_text(
                 cw // 2, cw // 2 + 65,
                 text="\u2605 \u041d\u043e\u0432\u044b\u0439 \u0440\u0435\u043a\u043e\u0440\u0434! \u2605",
